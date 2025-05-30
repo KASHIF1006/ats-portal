@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Briefcase, Calendar, TrendingUp, Eye, MessageSquare, Clock } from "lucide-react"
+import { Users, Briefcase, Calendar, TrendingUp, Eye } from "lucide-react"
 import Link from "next/link"
 
 export default function Dashboard() {
@@ -20,13 +20,13 @@ export default function Dashboard() {
       icon: Briefcase,
       color: "text-green-600",
     },
-    {
-      title: "Interviews Scheduled",
-      value: "18",
-      change: "+5",
-      icon: Calendar,
-      color: "text-purple-600",
-    },
+    // {
+    //   title: "Interviews Scheduled",
+    //   value: "18",
+    //   change: "+5",
+    //   icon: Calendar,
+    //   color: "text-purple-600",
+    // },
     {
       title: "Hire Rate",
       value: "24%",
@@ -78,7 +78,7 @@ export default function Dashboard() {
       position: "Senior Frontend Developer",
       time: "10:00 AM",
       date: "Today",
-      type: "Technical",
+      type: "In Progress",
     },
     {
       id: 2,
@@ -124,7 +124,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-3">
         {stats.map((stat, index) => (
           <Card key={index}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -152,7 +152,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {recentApplications.map((application) => (
                 <div key={application.id} className="flex items-center space-x-4">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center text-white font-semibold">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold">
                     {application.name
                       .split(" ")
                       .map((n) => n[0])
@@ -179,43 +179,43 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Upcoming Interviews */}
+        {/* Active Jobs */}
         <Card>
           <CardHeader>
-            <CardTitle>Upcoming Interviews</CardTitle>
-            <CardDescription>Scheduled interviews for the next few days</CardDescription>
+            <CardTitle>Active Jobs</CardTitle>
+            <CardDescription>Current job openings accepting applications</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {upcomingInterviews.map((interview) => (
                 <div key={interview.id} className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-blue-600 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 flex items-center justify-center">
                       <Calendar className="h-5 w-5 text-white" />
                     </div>
                   </div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-medium leading-none">{interview.candidate}</p>
                     <p className="text-sm text-muted-foreground">{interview.position}</p>
-                    <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                    {/* <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                       <Clock className="h-3 w-3" />
                       <span>
                         {interview.time} • {interview.date}
                       </span>
-                    </div>
+                    </div> */}
                   </div>
                   <div className="flex items-center space-x-2">
                     <Badge variant="outline">{interview.type}</Badge>
-                    <Button variant="ghost" size="sm">
+                    {/* <Button variant="ghost" size="sm">
                       <MessageSquare className="h-4 w-4" />
-                    </Button>
+                    </Button> */}
                   </div>
                 </div>
               ))}
             </div>
             <div className="mt-4">
               <Button variant="outline" className="w-full" asChild>
-                <Link href="/interviews">View All Interviews</Link>
+                <Link href="/jobs">View All Jobs</Link>
               </Button>
             </div>
           </CardContent>

@@ -17,11 +17,13 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
 
   // Otherwise, render with the sidebar
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex bg-gray-50 fixed inset-0">
+      <div className="flex-none w-auto h-full">
+        <Sidebar />
+      </div>
+      <div className="flex-1 flex flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="p-6 flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
   )

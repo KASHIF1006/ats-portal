@@ -1,202 +1,349 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MapPin, Clock, Users, DollarSign, Plus, Search, Filter, MoreHorizontal } from "lucide-react"
-import Link from "next/link"
+"use client";
+
+import { useEffect, useState, useMemo } from "react"; // Added useEffect, useState, useMemo
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  MapPin,
+  Clock,
+  Users,
+  DollarSign,
+  Plus,
+  Search,
+  Filter,
+  MoreHorizontal,
+  Loader2, // For loading state
+  Briefcase, // For empty state
+} from "lucide-react";
+import Link from "next/link";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  Timestamp, // Import Timestamp
+} from "firebase/firestore";
+import { app } from "@/lib/firebase"; // Your Firebase app instance
+
+const db = getFirestore(app);
+
+// Define an interface for your job data from Firestore
+interface Job {
+  id: string; // Firestore document ID
+  title: string;
+  company: string;
+  department: string; // This will be the parent doc ID (e.g., "engineering")
+  location: string;
+  jobType: string;
+  workArrangement?: string;
+  salaryMin?: number | null;
+  salaryMax?: number | null;
+  salaryCurrency?: string;
+  experienceLevel?: string;
+  description: string;
+  requirements?: string;
+  responsibilities?: string;
+  applicationDeadline?: string | Timestamp; // Can be string from input or Timestamp
+  isUrgent?: boolean;
+  requiresCoverLetter?: boolean;
+  requiresPortfolio?: boolean;
+  skills?: string[];
+  benefits?: string[];
+  status: string; // e.g., "published", "draft", "closed"
+  createdAt: Timestamp; // Firestore Timestamp
+  updatedAt?: Timestamp;
+  // applications: number; // This field is complex to get dynamically here, omitting for now
+}
+
+// Define your static labels here for consistency
+const staticDepartmentLabels: { [key: string]: string } = {
+    "frontend": "Frontend",
+    "backend": "Backend",
+    "software-engineer": "Software Engineer",
+    "devops": "DevOps",
+    "sales": "Sales",
+    "finance": "Finance",
+    "product": "Product Management",
+    "engineering": "Engineering",
+    "design": "Design",
+    "marketing": "Marketing",
+    "hr": "Human Resources",
+    "operations": "Operations",
+};
+
 
 export default function JobsPage() {
-  const jobs = [
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      department: "Engineering",
-      location: "San Francisco, CA",
-      type: "Full-time",
-      salary: "$120k - $160k",
-      applications: 45,
-      status: "Active",
-      postedDate: "2024-01-10",
-      description: "We're looking for a senior frontend developer to join our growing team...",
-    },
-    {
-      id: 2,
-      title: "Product Manager",
-      department: "Product",
-      location: "Remote",
-      type: "Full-time",
-      salary: "$130k - $170k",
-      applications: 32,
-      status: "Active",
-      postedDate: "2024-01-08",
-      description: "Lead product strategy and work with cross-functional teams...",
-    },
-    {
-      id: 3,
-      title: "UX Designer",
-      department: "Design",
-      location: "New York, NY",
-      type: "Full-time",
-      salary: "$90k - $120k",
-      applications: 28,
-      status: "Active",
-      postedDate: "2024-01-05",
-      description: "Create beautiful and intuitive user experiences...",
-    },
-    {
-      id: 4,
-      title: "Backend Developer",
-      department: "Engineering",
-      location: "Austin, TX",
-      type: "Full-time",
-      salary: "$110k - $150k",
-      applications: 38,
-      status: "Draft",
-      postedDate: "2024-01-03",
-      description: "Build scalable backend systems and APIs...",
-    },
-    {
-      id: 5,
-      title: "Marketing Manager",
-      department: "Marketing",
-      location: "Los Angeles, CA",
-      type: "Full-time",
-      salary: "$80k - $110k",
-      applications: 22,
-      status: "Closed",
-      postedDate: "2023-12-20",
-      description: "Drive marketing campaigns and brand awareness...",
-    },
-  ]
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // States for filters - functionality to be implemented later
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [selectedStatus, setSelectedStatus] = useState("all");
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      setIsLoading(true);
+      setError(null);
+      const fetchedJobs: Job[] = [];
+      try {
+        const jobCategoriesCollectionRef = collection(db, "jobCategories");
+        const departmentSnapshot = await getDocs(jobCategoriesCollectionRef);
+
+        for (const deptDoc of departmentSnapshot.docs) {
+          const departmentId = deptDoc.id;
+          const jobsCollectionRef = collection(
+            db,
+            "jobCategories",
+            departmentId,
+            "jobs"
+          );
+          const jobsQuery = query(jobsCollectionRef); // Fetch all jobs regardless of status initially
+          const jobsSnapshot = await getDocs(jobsQuery);
+
+          jobsSnapshot.forEach((jobDoc) => {
+            const jobData = jobDoc.data();
+            fetchedJobs.push({
+              id: jobDoc.id,
+              department: departmentId, // Store the department ID from the parent collection
+              ...jobData,
+            } as Job); // Assert type after spreading
+          });
+        }
+        // Sort jobs by creation date, newest first
+        fetchedJobs.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+        setJobs(fetchedJobs);
+      } catch (err) {
+        console.error("Error fetching jobs:", err);
+        setError("Failed to load jobs. Please try again later.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchJobs();
+  }, []);
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Active":
-        return "bg-green-100 text-green-800"
-      case "Draft":
-        return "bg-yellow-100 text-yellow-800"
-      case "Closed":
-        return "bg-gray-100 text-gray-800"
+    switch (status.toLowerCase()) {
+      case "published": // Assuming "Active" jobs are "published" in Firestore
+      case "active":
+        return "bg-green-100 text-green-800";
+      case "draft":
+        return "bg-yellow-100 text-yellow-800";
+      case "closed":
+        return "bg-red-100 text-red-800"; // Changed for more distinction
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-gray-100 text-gray-800";
     }
-  }
+  };
+
+  const formatSalary = (job: Job) => {
+    if (job.salaryMin && job.salaryMax) {
+      return `${job.salaryCurrency || "$"} ${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()}`;
+    }
+    if (job.salaryMin) {
+      return `${job.salaryCurrency || "$"} ${job.salaryMin.toLocaleString()} (min)`;
+    }
+    if (job.salaryMax) {
+      return `${job.salaryCurrency || "$"} ${job.salaryMax.toLocaleString()} (max)`;
+    }
+    return "Not Disclosed";
+  };
+
+  // Memoized and filtered jobs for display
+  const filteredJobs = useMemo(() => {
+    return jobs.filter(job => {
+      const titleMatch = job.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const departmentMatch = selectedDepartment === "all" || job.department === selectedDepartment;
+      const statusMatch = selectedStatus === "all" || job.status.toLowerCase() === selectedStatus.toLowerCase();
+      return titleMatch && departmentMatch && statusMatch;
+    });
+  }, [jobs, searchTerm, selectedDepartment, selectedStatus]);
+
+  const availableDepartmentsForFilter = useMemo(() => {
+    const depts = new Set(jobs.map(job => job.department));
+    return Array.from(depts).map(dept => ({
+        value: dept,
+        label: staticDepartmentLabels[dept] || dept.charAt(0).toUpperCase() + dept.slice(1)
+    }));
+  }, [jobs]);
+
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Jobs</h1>
-          <p className="text-muted-foreground">Manage your job postings and track applications</p>
+          <p className="text-muted-foreground">
+            Manage your job postings and track applications
+          </p>
         </div>
         <Button asChild>
-          <Link href="/jobs/new">
+          <Link href="/jobs/new"> {/* Assuming admin path for new job */}
             <Plus className="h-4 w-4 mr-2" />
             Post New Job
           </Link>
         </Button>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-center space-x-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="relative flex-1 min-w-[200px] sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-              <Input placeholder="Search jobs..." className="pl-10" />
+              <Input
+                placeholder="Search jobs by title..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            <Select>
-              <SelectTrigger className="w-[180px]">
+            <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Department" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
-                <SelectItem value="engineering">Engineering</SelectItem>
-                <SelectItem value="product">Product</SelectItem>
-                <SelectItem value="design">Design</SelectItem>
-                <SelectItem value="marketing">Marketing</SelectItem>
+                {availableDepartmentsForFilter.map(dept => (
+                    <SelectItem key={dept.value} value={dept.value}>{dept.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Select>
-              <SelectTrigger className="w-[180px]">
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="published">Published (Active)</SelectItem>
                 <SelectItem value="draft">Draft</SelectItem>
                 <SelectItem value="closed">Closed</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
+            {/* <Button variant="outline">
               <Filter className="h-4 w-4 mr-2" />
               More Filters
-            </Button>
+            </Button> */}
           </div>
         </CardContent>
       </Card>
 
-      {/* Jobs Grid */}
-      <div className="grid gap-6">
-        {jobs.map((job) => (
-          <Card key={job.id} className="hover:shadow-md transition-shadow">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <CardTitle className="text-xl">{job.title}</CardTitle>
-                    <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
-                  </div>
-                  <CardDescription className="text-base">{job.department}</CardDescription>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground line-clamp-2">{job.description}</p>
+      {isLoading && (
+        <div className="flex justify-center items-center py-10">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="ml-2 text-muted-foreground">Loading jobs...</p>
+        </div>
+      )}
 
-                <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <MapPin className="h-4 w-4" />
-                    <span>{job.location}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Clock className="h-4 w-4" />
-                    <span>{job.type}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <DollarSign className="h-4 w-4" />
-                    <span>{job.salary}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Users className="h-4 w-4" />
-                    <span>{job.applications} applications</span>
-                  </div>
-                </div>
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="pt-6 text-red-700 text-center">
+            <p>{error}</p>
+          </CardContent>
+        </Card>
+      )}
 
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-sm text-muted-foreground">
-                    Posted on {new Date(job.postedDate).toLocaleDateString()}
-                  </span>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/jobs/${job.id}/applications`}>View Applications</Link>
-                    </Button>
-                    <Button size="sm" asChild>
-                      <Link href={`/jobs/${job.id}/edit`}>Edit Job</Link>
-                    </Button>
+      {!isLoading && !error && filteredJobs.length === 0 && (
+         <Card>
+          <CardContent className="pt-10 pb-10 text-center text-muted-foreground">
+            <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+            <p className="font-semibold">No jobs found.</p>
+            <p className="text-sm">
+                {jobs.length > 0 ? "Try adjusting your filters or search term." : "Post a new job to get started!"}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoading && !error && filteredJobs.length > 0 && (
+        <div className="grid gap-6">
+          {filteredJobs.map((job) => (
+            <Card key={job.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <div className="flex items-center space-x-2">
+                      <Link href={`/admin/jobs/${job.department}/${job.id}`} className="hover:underline">
+                        <CardTitle className="text-xl">{job.title}</CardTitle>
+                      </Link>
+                      <Badge className={`${getStatusColor(job.status)} capitalize`}>
+                        {job.status}
+                      </Badge>
+                    </div>
+                    <CardDescription className="text-sm">
+                      {staticDepartmentLabels[job.department] || job.department} at {job.company}
+                    </CardDescription>
+                  </div>
+                  {/* Placeholder for actions dropdown */}
+                  {/* <Button variant="ghost" size="icon"> <MoreHorizontal className="h-5 w-5" /> </Button> */}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {job.description}
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>{job.location}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <Clock className="h-4 w-4" />
+                      <span>{job.jobType}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <DollarSign className="h-4 w-4" />
+                      <span>{formatSalary(job)}</span>
+                    </div>
+                    {/* <div className="flex items-center space-x-1">
+                      <Users className="h-4 w-4" />
+                      <span>{0} applications</span> // Placeholder for applications count
+                    </div> */}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-dashed mt-3">
+                    <span className="text-xs text-muted-foreground">
+                      Posted on{" "}
+                      {job.createdAt instanceof Timestamp
+                        ? job.createdAt.toDate().toLocaleDateString()
+                        : "N/A"}
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/admin/jobs/${job.department}/${job.id}/applications`}>
+                          View Applications
+                        </Link>
+                      </Button>
+                      <Button size="sm" asChild>
+                        <Link href={`/admin/jobs/${job.department}/${job.id}/edit`}>Edit Job</Link>
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
-  )
+  );
 }

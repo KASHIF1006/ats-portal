@@ -44,12 +44,12 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        "bg-white border-r border-gray-200 flex flex-col transition-all duration-300",
-        collapsed ? "w-16" : "w-64",
+        "bg-white border-r border-gray-200 flex flex-col transition-all duration-300 h-full",
+        collapsed ? "w-16 " : "w-64",
       )}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
         {!collapsed && (
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -121,7 +121,7 @@ export function Sidebar() {
       </nav>
 
       {/* User Profile */}
-      {!collapsed && (
+      {/* {!collapsed && (
         <div className="p-4 border-t border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
@@ -133,7 +133,7 @@ export function Sidebar() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   )
 }
