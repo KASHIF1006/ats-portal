@@ -329,7 +329,7 @@ export default function JobsPage() {
                     <div className="flex items-center space-x-2">
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/jobs/${job.id}/application`}>
-                          View Applications
+                          View Best Fit Candidates
                         </Link>
                       </Button>
                       <Button size="sm" asChild>

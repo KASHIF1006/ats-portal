@@ -75,7 +75,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // Hire Rate is complex, keep static or as placeholder for now
-  const hireRateStat = { title: "Hire Rate", value: "15%", change: "+1%", icon: TrendingUp, color: "text-orange-600" };
+  const hireRateStat = { title: "Hire Rate", value: "15", change: "+1%", icon: TrendingUp, color: "text-orange-600" };
 
 
   useEffect(() => {
@@ -215,12 +215,12 @@ export default function Dashboard() {
               <stat.icon className={`h-4 w-4 ${stat.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              {stat.change && (
+              <div className="text-2xl font-bold">{stat.value}%</div>
+              {/* {stat.change && (
                 <p className="text-xs text-muted-foreground">
                   <span className="text-green-600">{stat.change}</span> from last month
                 </p>
-              )}
+              )} */}
             </CardContent>
           </Card>
         ))}
@@ -241,18 +241,20 @@ export default function Dashboard() {
               <div className="space-y-4">
                 {recentApplications.map((app) => (
                   <div key={app.id} className="flex items-center space-x-4">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white font-semibold text-sm">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-semibold text-sm">
                       {app.fullName?.split(" ").map((n) => n[0]).join("").toUpperCase() || "N/A"}
                     </div>
                     <div className="flex-1 space-y-0.5">
-                      <p className="text-sm font-medium leading-none">{app.fullName}</p>
+                      <p className="text-sm font-medium leading-none">{app.fullName} &nbsp;
+                        <span className="text-xs text-muted-foreground">
+                           {app.submittedAt.toDate().toLocaleDateString()}
+                        </span>
+                      </p>
                       <p className="text-xs text-muted-foreground">
                         Applied for {staticDepartmentLabels[app.departmentApplied] || app.departmentApplied}
                         {/* TODO: Fetch job title based on app.jobIdApplied for better UX */}
                       </p>
-                       <p className="text-xs text-muted-foreground">
-                        On: {app.submittedAt.toDate().toLocaleDateString()}
-                      </p>
+                       
                     </div>
                     <div className="flex items-center space-x-2">
                       <Badge className={`${getStageColor(app.status)} capitalize text-xs`}>{app.status}</Badge>
@@ -289,7 +291,7 @@ export default function Dashboard() {
                 {activeJobsForDisplay.map((job) => (
                   <div key={job.id} className="flex items-center space-x-4">
                     <div className="flex-shrink-0">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center">
                         <Briefcase className="h-5 w-5 text-white" />
                       </div>
                     </div>

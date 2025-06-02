@@ -9,6 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import {
   ArrowLeft,
   Calendar,
   MapPin,
@@ -36,6 +49,9 @@ import {
   where,
   getDocs,
   Timestamp,
+  addDoc,
+  serverTimestamp,
+  updateDoc
 } from "firebase/firestore"
 import { app } from "@/lib/firebase"
 
@@ -90,8 +106,8 @@ interface AiMatchedCandidateInfo {
   portfolio?: string;
   resume_url: string;
   score_out_of_100: number;
-  submittedAt: string; // Date string from API
-  status?: string; // Status from Firestore or AI
+  submittedAt: string;
+  status?: string;
 }
 
 interface AiApiResponse {
@@ -107,6 +123,16 @@ interface DisplayCandidate extends CandidateApplication {
   matchedKeywords?: string[];
 }
 
+interface InterviewFormData {
+  interviewer: string;
+  interviewDate: string;
+  interviewTime: string;
+  duration: string;
+  interviewType: string;
+  interviewFormat: string;
+  locationOrLink: string;
+  notes?: string;
+}
 
 const staticDepartmentLabels: { [key: string]: string } = {
     "frontend": "Frontend", "backend": "Backend", "software-engineer": "Software Engineer",
@@ -126,7 +152,7 @@ export default function JobApplicationsPage() {
   const jobIdFromUrl = params.id as string;
 
   const [isLoadingJob, setIsLoadingJob] = useState(true);
-  const [isLoadingCandidates, setIsLoadingCandidates] = useState(true);
+  const [isLoadingInitialCandidates, setIsLoadingInitialCandidates] = useState(true);
   const [isLoadingAiMatches, setIsLoadingAiMatches] = useState(false);
 
   const [jobDetails, setJobDetails] = useState<JobDetails | null>(null);
@@ -138,19 +164,27 @@ export default function JobApplicationsPage() {
   const [aiSummary, setAiSummary] = useState<Omit<AiApiResponse, "all_matched_list"> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState("matchScore"); // Default to matchScore
+  const [sortOrder, setSortOrder] = useState("matchScore");
+
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [selectedCandidateForInterview, setSelectedCandidateForInterview] = useState<DisplayCandidate | null>(null);
+  const [interviewFormData, setInterviewFormData] = useState<InterviewFormData>({
+    interviewer: "", interviewDate: "", interviewTime: "", duration: "60",
+    interviewType: "Technical", interviewFormat: "Video Call", locationOrLink: "", notes: "",
+  });
+  const [isScheduling, setIsScheduling] = useState(false);
 
   useEffect(() => {
     if (!jobIdFromUrl) {
       setError("Job ID is missing from URL.");
       setIsLoadingJob(false);
-      setIsLoadingCandidates(false);
+      setIsLoadingInitialCandidates(false);
       return;
     }
 
     const loadInitialData = async () => {
       setIsLoadingJob(true);
-      setIsLoadingCandidates(true);
+      setIsLoadingInitialCandidates(true);
       setError(null);
       setAiError(null);
       let foundJob: JobDetails | null = null;
@@ -177,7 +211,7 @@ export default function JobApplicationsPage() {
         if (!foundJob || !foundDeptId) {
           setError("Job not found.");
           setIsLoadingJob(false);
-          setIsLoadingCandidates(false);
+          setIsLoadingInitialCandidates(false);
           return;
         }
         setIsLoadingJob(false);
@@ -190,13 +224,13 @@ export default function JobApplicationsPage() {
           fetchedApplicants.push({ id: docSnap.id, ...docSnap.data() } as CandidateApplication);
         });
         setAllApplicants(fetchedApplicants);
-        setIsLoadingCandidates(false);
+        setIsLoadingInitialCandidates(false);
 
       } catch (err) {
         console.error("Error loading initial data:", err);
         setError("Failed to load job or initial candidate data.");
         setIsLoadingJob(false);
-        setIsLoadingCandidates(false);
+        setIsLoadingInitialCandidates(false);
       }
     };
 
@@ -205,7 +239,7 @@ export default function JobApplicationsPage() {
 
 
   useEffect(() => {
-    if (!actualDepartmentId || !jobIdFromUrl || !jobDetails) {
+    if (!actualDepartmentId || !jobIdFromUrl || !jobDetails || isLoadingInitialCandidates) {
       return;
     }
 
@@ -216,7 +250,7 @@ export default function JobApplicationsPage() {
         const aiApiBody = {
           category: actualDepartmentId,
           jobId: jobIdFromUrl,
-          top_n: allApplicants.length > 0 ? allApplicants.length : 5, // Analyze all applicants or a default
+          top_n: allApplicants.length > 0 ? allApplicants.length : 10,
         };
         const aiResponse = await fetch('http://127.0.0.1:5000/match_resumes', {
           method: 'POST',
@@ -232,6 +266,9 @@ export default function JobApplicationsPage() {
 
         const mergedCandidates = aiData.all_matched_list.map((aiCand): DisplayCandidate => {
           const originalApplicant = allApplicants.find(app => app.id === aiCand.candidate_id);
+          const submittedAtTimestamp = originalApplicant?.submittedAt || 
+            (aiCand.submittedAt ? new Timestamp(Math.floor(new Date(aiCand.submittedAt).getTime() / 1000), 0) : Timestamp.now());
+
           return {
             id: aiCand.candidate_id,
             fullName: aiCand.name,
@@ -244,7 +281,7 @@ export default function JobApplicationsPage() {
             portfolio: originalApplicant?.portfolio || aiCand.portfolio,
             resumeUrl: aiCand.resume_url,
             originalFileName: originalApplicant?.originalFileName,
-            submittedAt: originalApplicant?.submittedAt || new Timestamp(Math.floor(new Date(aiCand.submittedAt).getTime() / 1000), 0),
+            submittedAt: submittedAtTimestamp,
             status: originalApplicant?.status || aiCand.status || "N/A",
             matchScore: aiCand.score_out_of_100,
             matchedKeywords: aiCand.matched_keywords || [],
@@ -260,20 +297,20 @@ export default function JobApplicationsPage() {
             total_candidates_analyzed: aiData.total_candidates_analyzed,
         });
 
-      } catch (aiErr) {
-        console.error("Error calling AI matching API:", aiErr);
-        setAiError(aiErr instanceof Error ? aiErr.message : "Failed to get AI matches.");
+      } catch (aiErrCatch) {
+        console.error("Error calling AI matching API:", aiErrCatch);
+        setAiError(aiErrCatch instanceof Error ? aiErrCatch.message : "Failed to get AI matches.");
         setDisplayCandidates([]); 
       } finally {
         setIsLoadingAiMatches(false);
       }
     };
-
-    if(allApplicants.length > 0 || !isLoadingCandidates){ // Call AI if applicants loaded or if there were none (API might still return general info)
+    
+    if (actualDepartmentId && jobDetails && !isLoadingInitialCandidates) {
         fetchAiMatches();
     }
 
-  }, [actualDepartmentId, jobIdFromUrl, jobDetails, allApplicants, isLoadingCandidates]);
+  }, [actualDepartmentId, jobIdFromUrl, jobDetails, allApplicants, isLoadingInitialCandidates]);
 
 
   const handleSort = (order: string) => {
@@ -298,6 +335,7 @@ export default function JobApplicationsPage() {
       case "received": return "bg-blue-100 text-blue-800";
       case "screening": return "bg-cyan-100 text-cyan-800";
       case "review": return "bg-yellow-100 text-yellow-800";
+      case "interview scheduled": return "bg-purple-100 text-purple-800";
       case "interview": return "bg-purple-100 text-purple-800";
       case "offer": return "bg-green-100 text-green-800";
       case "hired": return "bg-teal-100 text-teal-800";
@@ -314,7 +352,6 @@ export default function JobApplicationsPage() {
     return "bg-red-500";
   };
 
-
   const formatSalary = (job: JobDetails | null) => {
     if (!job) return "N/A";
     if (job.salaryMin && job.salaryMax) return `${job.salaryCurrency || "$"} ${job.salaryMin.toLocaleString()} - ${job.salaryMax.toLocaleString()}`;
@@ -323,11 +360,97 @@ export default function JobApplicationsPage() {
     return "Not Disclosed";
   };
 
-  if (isLoadingJob) {
+  const handleOpenScheduleModal = (candidate: DisplayCandidate) => {
+    setSelectedCandidateForInterview(candidate);
+    setInterviewFormData({
+        interviewer: "",
+        interviewDate: new Date().toISOString().split('T')[0],
+        interviewTime: "10:00",
+        duration: "60",
+        interviewType: "Technical",
+        interviewFormat: "Video Call",
+        locationOrLink: "",
+        notes: "",
+    });
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleInterviewFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setInterviewFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleScheduleInterviewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCandidateForInterview || !jobDetails || !actualDepartmentId) {
+        alert("Candidate, job details, or department ID are missing.");
+        return;
+    }
+    setIsScheduling(true);
+    try {
+        const interviewDateTimeString = `${interviewFormData.interviewDate}T${interviewFormData.interviewTime}:00`;
+        const interviewDateTime = new Date(interviewDateTimeString);
+
+        if (isNaN(interviewDateTime.getTime())) {
+            alert("Invalid date or time format for interview.");
+            setIsScheduling(false);
+            return;
+        }
+
+        const newInterviewData = {
+            jobId: jobDetails.id,
+            jobTitle: jobDetails.title,
+            departmentId: actualDepartmentId,
+            candidateId: selectedCandidateForInterview.id,
+            candidateName: selectedCandidateForInterview.fullName,
+            candidateEmail: selectedCandidateForInterview.email,
+            interviewer: interviewFormData.interviewer,
+            interviewTimestamp: Timestamp.fromDate(interviewDateTime),
+            interviewDate: interviewFormData.interviewDate,
+            interviewTime: interviewFormData.interviewTime,
+            duration: interviewFormData.duration + " min",
+            interviewType: interviewFormData.interviewType,
+            interviewFormat: interviewFormData.interviewFormat,
+            locationOrLink: interviewFormData.locationOrLink,
+            notes: interviewFormData.notes || "",
+            status: "Scheduled",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
+
+        const interviewCollectionRef = collection(db, "interviewCollections");
+        await addDoc(interviewCollectionRef, newInterviewData);
+
+        const candidateDocRef = doc(db, "candidateCategories", actualDepartmentId, "candidates", selectedCandidateForInterview.id);
+        await updateDoc(candidateDocRef, { 
+            status: "Interview Scheduled", 
+            updatedAt: serverTimestamp() 
+        });
+        
+        setDisplayCandidates(prev => prev.map(cand => 
+            cand.id === selectedCandidateForInterview.id ? {...cand, status: "Interview Scheduled"} : cand
+        ));
+        setAllApplicants(prev => prev.map(cand => 
+            cand.id === selectedCandidateForInterview.id ? {...cand, status: "Interview Scheduled"} : cand
+        ));
+
+        alert("Interview scheduled successfully!");
+        setIsScheduleModalOpen(false);
+        setSelectedCandidateForInterview(null);
+
+    } catch (scheduleError) {
+        console.error("Error scheduling interview:", scheduleError);
+        alert(`Failed to schedule interview: ${scheduleError instanceof Error ? scheduleError.message : String(scheduleError)}`);
+    } finally {
+        setIsScheduling(false);
+    }
+  };
+
+  if (isLoadingJob || isLoadingInitialCandidates) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-blue-600" />
-        <p className="ml-3 text-muted-foreground">Loading job details...</p>
+        <p className="ml-3 text-muted-foreground">Loading application data...</p>
       </div>
     );
   }
@@ -350,7 +473,7 @@ export default function JobApplicationsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/jobs")}>
+        <Button variant="ghost" size="sm" onClick={() => router.push("/admin/jobs")}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Jobs List
         </Button>
@@ -393,8 +516,8 @@ export default function JobApplicationsPage() {
                         <p className="text-xs text-muted-foreground">{jobDetails.requirements}</p>
                     ) : (
                         <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-                        {jobDetails.requirements.slice(0,3).map((req, i) => (<li key={i}>{req}</li>))}
-                        {jobDetails.requirements.length > 3 && <li>...and more</li>}
+                        {(jobDetails.requirements as string[]).slice(0,3).map((req, i) => (<li key={i}>{req}</li>))}
+                        {(jobDetails.requirements as string[]).length > 3 && <li>...and more</li>}
                         </ul>
                     )}
                 </div>
@@ -448,7 +571,7 @@ export default function JobApplicationsPage() {
            {!isLoadingAiMatches && !aiError && !aiSummary && allApplicants.length > 0 &&
                 <p className="text-sm text-muted-foreground text-center py-4">AI matching results will appear here.</p>
            }
-           {!isLoadingAiMatches && !aiError && !aiSummary && allApplicants.length === 0 && !isLoadingCandidates &&
+           {!isLoadingAiMatches && !aiError && !aiSummary && allApplicants.length === 0 && !isLoadingInitialCandidates &&
                 <p className="text-sm text-muted-foreground text-center py-4">No applicants to analyze.</p>
            }
         </CardContent>
@@ -472,14 +595,14 @@ export default function JobApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoadingAiMatches && <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin" /></div>}
-          {!isLoadingAiMatches && aiError && <p className="text-red-500 text-center py-6">{aiError}</p>}
-          {!isLoadingAiMatches && !aiError && displayCandidates.length === 0 && (
+          {(isLoadingInitialCandidates || isLoadingAiMatches) && !displayCandidates.length && <div className="flex justify-center py-6"><Loader2 className="h-6 w-6 animate-spin" /></div>}
+          {!isLoadingInitialCandidates && !isLoadingAiMatches && aiError && <p className="text-red-500 text-center py-6">{aiError}</p>}
+          {!isLoadingInitialCandidates && !isLoadingAiMatches && !aiError && displayCandidates.length === 0 && (
             <p className="text-center text-muted-foreground py-6">
-                {allApplicants.length > 0 ? "No candidates matched by AI or an error occurred." : "No candidates have applied for this job yet."}
+                {allApplicants.length > 0 ? "No candidates matched by AI or results are being processed." : "No candidates have applied for this job yet."}
             </p>
           )}
-          {!isLoadingAiMatches && !aiError && displayCandidates.length > 0 && (
+          {!isLoadingInitialCandidates && !isLoadingAiMatches && !aiError && displayCandidates.length > 0 && (
             <div className="space-y-4">
               {displayCandidates.map((candidate) => (
                 <Card key={candidate.id} className="shadow-sm">
@@ -495,7 +618,7 @@ export default function JobApplicationsPage() {
                       <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1">
                           <div>
-                            <Link href={`/candidates/${candidate.departmentApplied}/${candidate.id}?jobId=${jobIdFromUrl}`} className="hover:underline">
+                            <Link href={`/admin/candidates/${candidate.departmentApplied}/${candidate.id}?jobId=${jobIdFromUrl}`} className="hover:underline">
                                <h3 className="font-semibold text-md">{candidate.fullName}</h3>
                             </Link>
                             <p className="text-xs text-muted-foreground">{candidate.email}</p>
@@ -550,10 +673,9 @@ export default function JobApplicationsPage() {
                             </div>
                         )}
 
-
                         <div className="flex items-center justify-start sm:justify-end gap-2 mt-3 pt-3 border-t border-dashed">
                           <Button variant="outline" size="sm" asChild>
-                            <Link href={`/candidates/${candidate.departmentApplied}/${candidate.id}?jobId=${jobIdFromUrl}`}>
+                            <Link href={`/admin/candidates/${candidate.departmentApplied}/${candidate.id}?jobId=${jobIdFromUrl}`}>
                                 <Eye className="h-3.5 w-3.5 mr-1.5" /> View Profile
                             </Link>
                           </Button>
@@ -564,6 +686,10 @@ export default function JobApplicationsPage() {
                               </a>
                             </Button>
                           )}
+                          <Button size="sm" onClick={() => handleOpenScheduleModal(candidate)}>
+                            <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                            Schedule Interview
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -574,6 +700,77 @@ export default function JobApplicationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {selectedCandidateForInterview && jobDetails && actualDepartmentId && (
+        <Dialog open={isScheduleModalOpen} onOpenChange={setIsScheduleModalOpen}>
+            <DialogContent className="sm:max-w-[525px]">
+                <DialogHeader>
+                <DialogTitle>Schedule Interview</DialogTitle>
+                <DialogDescription>
+                    For {selectedCandidateForInterview.fullName} for the position of {jobDetails.title}.
+                </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleScheduleInterviewSubmit} className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="interviewer" className="text-right">Interviewer(s)</Label>
+                        <Input id="interviewer" name="interviewer" value={interviewFormData.interviewer} onChange={handleInterviewFormChange} className="col-span-3" required />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="interviewDate" className="text-right">Date</Label>
+                        <Input id="interviewDate" name="interviewDate" type="date" value={interviewFormData.interviewDate} onChange={handleInterviewFormChange} className="col-span-3" required />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="interviewTime" className="text-right">Time</Label>
+                        <Input id="interviewTime" name="interviewTime" type="time" value={interviewFormData.interviewTime} onChange={handleInterviewFormChange} className="col-span-3" required />
+                    </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="duration" className="text-right">Duration (min)</Label>
+                        <Input id="duration" name="duration" type="number" value={interviewFormData.duration} onChange={handleInterviewFormChange} className="col-span-3" required placeholder="e.g., 60" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="interviewType" className="text-right">Type</Label>
+                        <Select name="interviewType" value={interviewFormData.interviewType} onValueChange={(value) => handleInterviewFormChange({ target: { name: "interviewType", value } } as any)}>
+                            <SelectTrigger className="col-span-3"> <SelectValue placeholder="Select type" /> </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Screening">Screening</SelectItem>
+                                <SelectItem value="Technical">Technical</SelectItem>
+                                <SelectItem value="Behavioral">Behavioral</SelectItem>
+                                <SelectItem value="HR Round">HR Round</SelectItem>
+                                <SelectItem value="Final">Final</SelectItem>
+                                <SelectItem value="Portfolio Review">Portfolio Review</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="interviewFormat" className="text-right">Format</Label>
+                            <Select name="interviewFormat" value={interviewFormData.interviewFormat} onValueChange={(value) => handleInterviewFormChange({ target: { name: "interviewFormat", value } } as any)}>
+                            <SelectTrigger className="col-span-3"> <SelectValue placeholder="Select format" /> </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="Video Call">Video Call</SelectItem>
+                                <SelectItem value="Phone Call">Phone Call</SelectItem>
+                                <SelectItem value="In-Person">In-Person</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="locationOrLink" className="text-right">Location/Link</Label>
+                        <Input id="locationOrLink" name="locationOrLink" value={interviewFormData.locationOrLink} onChange={handleInterviewFormChange} className="col-span-3" required placeholder="e.g., Zoom link or office address"/>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="notes" className="text-right">Notes</Label>
+                        <Textarea id="notes" name="notes" value={interviewFormData.notes} onChange={handleInterviewFormChange} className="col-span-3" placeholder="Optional notes for the interview..."/>
+                    </div>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsScheduleModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" disabled={isScheduling}>
+                            {isScheduling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Schedule Interview
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

@@ -48,6 +48,7 @@ interface Candidate {
   id: string; // Firestore document ID
   fullName: string;
   email: string;
+  image?: string; // URL to candidate's profile image
   phone?: string;
   departmentApplied: string;
   experienceLevelApplied: string;
@@ -293,16 +294,21 @@ export default function CandidatesPage() {
             <Card key={candidate.id} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex items-start space-x-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={"/placeholder.svg"} alt={candidate.fullName} /> {/* Placeholder avatar */}
-                    <AvatarFallback>
-                      {candidate.fullName
-                        ?.split(" ")
-                        .map((n) => n[0])
-                        .join("")
-                        .toUpperCase() || "N/A"}
+                  <Avatar className="h-10 w-10">
+                  {candidate.image ? (
+                    <AvatarImage src={candidate.image} alt={candidate.fullName} />
+                  ) : (
+                    <AvatarFallback className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">
+                        {candidate.fullName
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase() || "N/A"}
+                      </span>
                     </AvatarFallback>
-                  </Avatar>
+                  )}
+                </Avatar>
 
                   <div className="flex-1 space-y-3">
                     <div className="flex items-start justify-between">
@@ -347,6 +353,11 @@ export default function CandidatesPage() {
                         <span className="text-sm text-muted-foreground">
                           Experience: {staticExperienceLevelLabels[candidate.experienceLevelApplied] || candidate.experienceLevelApplied || "N/A"}
                         </span>
+                        {candidate.resumeUrl && (
+                        <Button variant="link" size="sm" asChild className="p-0 h-auto">
+                            <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer">View Resume</a>
+                        </Button>
+                     )}
                       </div>
                       <div className="flex items-center space-x-2">
                         <Button variant="outline" size="sm" asChild>
@@ -366,11 +377,7 @@ export default function CandidatesPage() {
                         ))}
                       </div>
                     )} */}
-                     {candidate.resumeUrl && (
-                        <Button variant="link" size="sm" asChild className="p-0 h-auto">
-                            <a href={candidate.resumeUrl} target="_blank" rel="noopener noreferrer">View Resume</a>
-                        </Button>
-                     )}
+                     
                   </div>
                 </div>
               </CardContent>
