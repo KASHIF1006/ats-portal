@@ -271,7 +271,6 @@ export default function JobsPage() {
           </CardContent>
         </Card>
       )}
-
       {!isLoading && !error && filteredJobs.length > 0 && (
         <div className="grid gap-6">
           {filteredJobs.map((job) => (
@@ -280,7 +279,7 @@ export default function JobsPage() {
                 <div className="flex items-start justify-between">
                   <div className="space-y-1">
                     <div className="flex items-center space-x-2">
-                      <Link href={`/admin/jobs/${job.department}/${job.id}`} className="hover:underline">
+                      <Link href={`/jobs/${job.id}/application`} className="hover:underline">
                         <CardTitle className="text-xl">{job.title}</CardTitle>
                       </Link>
                       <Badge className={`${getStatusColor(job.status)} capitalize`}>
@@ -329,12 +328,12 @@ export default function JobsPage() {
                     </span>
                     <div className="flex items-center space-x-2">
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/admin/jobs/${job.department}/${job.id}/applications`}>
+                        <Link href={`/jobs/${job.id}/application`}>
                           View Applications
                         </Link>
                       </Button>
                       <Button size="sm" asChild>
-                        <Link href={`/admin/jobs/${job.department}/${job.id}/edit`}>Edit Job</Link>
+                        <Link href={`/jobs/${job.id}/application`}>Edit Job</Link>
                       </Button>
                     </div>
                   </div>
