@@ -45,7 +45,7 @@ export function Sidebar() {
     <div
       className={cn(
         "bg-white border-r border-gray-200 flex flex-col transition-all duration-300 h-full",
-        collapsed ? "w-16 " : "w-64",
+        collapsed ? "w-16 cs-sidebar" : "w-64",
       )}
     >
       {/* Logo */}
@@ -72,7 +72,7 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cs-sidebar-link",
                 isActive
                   ? "bg-blue-50 text-blue-700 border border-blue-200"
                   : "text-gray-600 hover:text-gray-900 hover:bg-gray-50",
@@ -101,8 +101,8 @@ export function Sidebar() {
               target="_blank"
               rel="noopener noreferrer"
               className={cn(
-                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                "text-gray-600 hover:text-gray-900 hover:bg-gray-50 group",
+                "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors cs-external-link",
+                "text-gray-600 hover:text-gray-900 hover:bg-gray-50 group ",
               )}
             >
               <item.icon className="h-5 w-5 flex-shrink-0" />

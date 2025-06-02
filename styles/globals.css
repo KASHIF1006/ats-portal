@@ -10,6 +10,12 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  .cs-sidebar .cs-sidebar-link {
+    padding: 10px 5px !important;
+  }
+  .cs-sidebar .cs-external-link{
+    padding: 10px 5px !important;
+  }
 }
 
 @layer base {
